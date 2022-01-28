@@ -1,6 +1,6 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
-from scapy.all import *
+from scapy.all import sniff, Dot11, Dot11ProbeReq
 from datetime import datetime
 import os
 import humanize
@@ -10,6 +10,8 @@ import sys
 # config
 DISPLAY_PROBES_MAX = 16
 
+
+# "▂▄▆█"
 # colors, control sequences
 TERM_RED           = '\033[91m'
 TERM_GREEN         = '\033[92m'
@@ -21,11 +23,11 @@ TERM_RESET         = '\033[0m'
 TERM_POS_ZERO      = '\033[0;0H'
 
 # probe database
-probes = [ ]
+probes = []
 
 
 def signal_handler(signal, frame):
-    print TERM_RESET
+    print(TERM_RESET)
     sys.exit(0)
 
 
@@ -64,10 +66,9 @@ def update_probes(probe):
 
 def print_probes():
     termx, termy = get_termsize()
-    col1_width = termx // 2
-    col2_width = termx - col1_width - 1
+    col_width = termx // 3
     DISPLAY_PROBES_MAX = termy - 2
-    print TERM_RESET + TERM_POS_ZERO + str(datetime.now()).center(termx)
+    print(TERM_RESET + TERM_POS_ZERO + str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")).center(termx) + "\n")
     for i in range(len(probes)):
         probe = probes[i]
         # ssid
@@ -80,29 +81,30 @@ def print_probes():
             out += TERM_YELLOW
         else:
             out += TERM_GREEN
-        out += probe['ssid'].rjust(col1_width)
+        out += probe['ssid'].rjust(col_width)
         # time
-        out += ' '
+        #out += ' '
         out += TERM_RESET + TERM_BLUE
-        out += humanize.naturaltime(probe['last_seen']).ljust(col2_width)
-        print out
+        out += humanize.naturaltime(probe['last_seen']).center(col_width)
+        out += TERM_RESET 
+        out += probe['rssi'].ljust(col_width)
+        print(out)
 
 
 def packet_handler(pkt):
     if pkt.haslayer(Dot11):
         if pkt.type == 0 and pkt.subtype == 4:
-            ssid = pkt.getlayer(Dot11ProbeReq).info
+            ssid = pkt.getlayer(Dot11ProbeReq).info.decode("utf-8")
             if len(ssid):
                 try:
-                    extra = pkt.notdecoded
-                    signal_strength = -(256 - ord(extra[-4:-3]))
+                    signal_strength = pkt.dBm_AntSignal
                 except:
                     signal_strength = 0
-                probe = { }
+                probe = {}
                 probe['ssid'] = ssid
-                probe['signal'] = signal_strength
-                probe['source'] = pkt.addr2
-                probe['target'] = pkt.addr3
+                probe['rssi'] = str(signal_strength) + " dBm"
+                #probe['source'] = pkt.addr2
+                #probe['target'] = pkt.addr3
                 update_probes(probe)
                 print_probes()
 

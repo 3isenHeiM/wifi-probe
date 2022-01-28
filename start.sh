@@ -1,10 +1,9 @@
-#!/bin/sh -x
+#!/bin/bash 
 
-IFACE=wlan0
+IFACE="wlx502b73db22e5"
 
-airmon-ng check kill
-rfkill unblock all
-airmon-ng start ${IFACE}
-ip link set up dev ${IFACE}mon
+ifconfig ${IFACE} down
+iwconfig ${IFACE} mode monitor
+ifconfig ${IFACE} up
 
-sh wifi-probe.py ${IFACE}mon
+./wifi-probe.py ${IFACE}
