@@ -10,8 +10,6 @@ import sys
 # config
 DISPLAY_PROBES_MAX = 16
 
-
-# "▂▄▆█"
 # colors, control sequences
 TERM_RED           = '\033[91m'
 TERM_GREEN         = '\033[92m'
@@ -25,16 +23,24 @@ TERM_POS_ZERO      = '\033[0;0H'
 # probe database
 probes = []
 
-
 def signal_handler(signal, frame):
     print(TERM_RESET)
     sys.exit(0)
-
 
 def get_termsize():
     y, x = os.popen('stty size', 'r').read().split()
     return int(x), int(y)
 
+def rssi_bars (rssi):
+    if rssi < -70:
+        bar = TERM_RED + "▁___" + TERM_RESET
+    elif -90 <= rssi < -70:
+        bar = TERM_ORANGE + "▁▃__" + TERM_RESET
+    elif -70 <= rssi < -50:
+        bar = TERM_YELLOW + "▁▃▅_" + TERM_RESET   
+    else:
+        bar =TERM_GREEN + "▁▃▅▇" + TERM_RESET
+    return bar
 
 def update_probes(probe):
     probe['last_seen'] = datetime.now()
@@ -66,28 +72,24 @@ def update_probes(probe):
 
 def print_probes():
     termx, termy = get_termsize()
-    col_width = termx // 3
+    col_width = (termx - 2 )// 2 # floor division
     DISPLAY_PROBES_MAX = termy - 2
+
     print(TERM_RESET + TERM_POS_ZERO + str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")).center(termx) + "\n")
-    for i in range(len(probes)):
-        probe = probes[i]
-        # ssid
+    
+    # Sort the probes per order of last_seen
+    probes_display = sorted(probes, key=lambda d: d['last_seen'], reverse=True)
+    
+    for i in range(len(probes_display)):
+        probe = probes_display[i]
         out = ''
         out += TERM_BOLD
-        age = (datetime.now() - probe['last_seen']).total_seconds()
-        if age < 60:
-            out += TERM_RED
-        elif age < 180:
-            out += TERM_YELLOW
-        else:
-            out += TERM_GREEN
-        out += probe['ssid'].rjust(col_width)
-        # time
-        #out += ' '
+        # we must add 9 to col_width because of the special chars not counting
+        out += (probe['ssid'] + " " + rssi_bars(probe['rssi'])).rjust(col_width + 9)
+        out += '  '
         out += TERM_RESET + TERM_BLUE
-        out += humanize.naturaltime(probe['last_seen']).center(col_width)
+        out += humanize.naturaltime(probe['last_seen']).ljust(col_width)
         out += TERM_RESET 
-        out += probe['rssi'].ljust(col_width)
         print(out)
 
 
@@ -102,9 +104,7 @@ def packet_handler(pkt):
                     signal_strength = 0
                 probe = {}
                 probe['ssid'] = ssid
-                probe['rssi'] = str(signal_strength) + " dBm"
-                #probe['source'] = pkt.addr2
-                #probe['target'] = pkt.addr3
+                probe['rssi'] = signal_strength
                 update_probes(probe)
                 print_probes()
 
